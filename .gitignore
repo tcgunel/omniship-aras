@@ -1,0 +1,6 @@
+/vendor/
+composer.lock
+.phpunit.result.cache
+.phpunit.cache/
+aras-cargo-entegrasyon-master
+ArasKargoAPI-master
