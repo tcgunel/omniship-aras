@@ -9,25 +9,36 @@ use function Omniship\Aras\Tests\createMockHttpClient;
 use function Omniship\Aras\Tests\createMockRequestFactory;
 use function Omniship\Aras\Tests\createMockStreamFactory;
 
-function createTrackingSuccessJson(): string
+function createGetOrderWithIntegrationCodeSuccessXml(): string
 {
-    return json_encode([
-        'Code' => 200,
-        'Message' => 'Success',
-        'Responses' => [
-            [
-                'TransactionDate' => '2024-01-15T14:30:00',
-                'UnitName' => 'ISTANBUL',
-                'ShipmentLineTransType' => '1',
-                'Description' => 'Teslim edildi',
-            ],
-        ],
-    ]);
+    return '<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <soap:Body>
+    <GetOrderWithIntegrationCodeResponse xmlns="http://tempuri.org/">
+      <GetOrderWithIntegrationCodeResult>
+        <Order>
+          <TradingWaybillNumber>TRACK-001</TradingWaybillNumber>
+          <InvoiceNumber>TRACK-001</InvoiceNumber>
+          <ReceiverName>Test Receiver</ReceiverName>
+          <ReceiverAddress>Test Address</ReceiverAddress>
+          <ReceiverPhone1>5551234567</ReceiverPhone1>
+          <ReceiverCityName>ISTANBUL</ReceiverCityName>
+          <ReceiverTownName>KADIKOY</ReceiverTownName>
+          <IntegrationCode>TRACK-001</IntegrationCode>
+          <PieceCount>1</PieceCount>
+          <PayorTypeCode>1</PayorTypeCode>
+          <IsWorldWide>0</IsWorldWide>
+          <IsCod>0</IsCod>
+        </Order>
+      </GetOrderWithIntegrationCodeResult>
+    </GetOrderWithIntegrationCodeResponse>
+  </soap:Body>
+</soap:Envelope>';
 }
 
 beforeEach(function () {
     $this->request = new GetTrackingStatusRequest(
-        createMockHttpClient(createTrackingSuccessJson()),
+        createMockHttpClient(createGetOrderWithIntegrationCodeSuccessXml()),
         createMockRequestFactory(),
         createMockStreamFactory(),
     );
@@ -42,8 +53,9 @@ beforeEach(function () {
 it('builds correct request data', function () {
     $data = $this->request->getData();
 
-    expect($data)->toHaveKey('TrackingNumber', 'TRACK-001')
-        ->and($data)->toHaveKey('LanguageCode', 'tr');
+    expect($data)->toHaveKey('Username', 'testuser')
+        ->and($data)->toHaveKey('Password', 'testpass')
+        ->and($data)->toHaveKey('IntegrationCode', 'TRACK-001');
 });
 
 it('throws when trackingNumber is missing', function () {
@@ -67,9 +79,15 @@ it('sends and returns GetTrackingStatusResponse', function () {
         ->and($response->isSuccessful())->toBeTrue();
 });
 
-it('uses correct tracking REST endpoint', function () {
-    // The tracking endpoint should be the same for test and production
-    $data = $this->request->getData();
+it('validates username and password are required', function () {
+    $request = new GetTrackingStatusRequest(
+        createMockHttpClient(),
+        createMockRequestFactory(),
+        createMockStreamFactory(),
+    );
+    $request->initialize([
+        'trackingNumber' => 'TRACK-001',
+    ]);
 
-    expect($data['TrackingNumber'])->toBe('TRACK-001');
-});
+    $request->getData();
+})->throws(\Omniship\Common\Exception\InvalidRequestException::class);

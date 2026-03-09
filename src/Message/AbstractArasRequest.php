@@ -104,6 +104,22 @@ abstract class AbstractArasRequest extends AbstractHttpRequest
         return $this->setParameter('codAmount', $codAmount);
     }
 
+    /**
+     * @return string[]|null
+     */
+    public function getBarcodes(): ?array
+    {
+        return $this->getParameter('barcodes');
+    }
+
+    /**
+     * @param string[] $barcodes
+     */
+    public function setBarcodes(array $barcodes): static
+    {
+        return $this->setParameter('barcodes', $barcodes);
+    }
+
     protected function getSoapUrl(): string
     {
         return $this->getTestMode() ? self::SOAP_URL_TEST : self::SOAP_URL_PRODUCTION;

@@ -41,9 +41,9 @@ class GetTrackingStatusResponse extends AbstractResponse implements TrackingResp
             $trackingNumber = $request->getTrackingNumber() ?? '';
         }
 
-        $responses = $this->getResponses();
+        $order = $this->getOrder();
 
-        if ($responses === []) {
+        if ($order === null) {
             return new TrackingInfo(
                 trackingNumber: $trackingNumber,
                 status: ShipmentStatus::UNKNOWN,
@@ -52,124 +52,37 @@ class GetTrackingStatusResponse extends AbstractResponse implements TrackingResp
             );
         }
 
-        $events = $this->parseEvents($responses);
-        $status = $events !== [] ? $events[count($events) - 1]->status : ShipmentStatus::UNKNOWN;
+        // Order exists — shipment was registered
+        $event = new TrackingEvent(
+            status: ShipmentStatus::PRE_TRANSIT,
+            description: 'Sipariş kaydı oluşturuldu',
+            occurredAt: new \DateTimeImmutable(),
+            location: $order['ReceiverCityName'] ?? null,
+        );
 
         return new TrackingInfo(
-            trackingNumber: $trackingNumber,
-            status: $status,
-            events: $events,
+            trackingNumber: $order['IntegrationCode'] ?? $trackingNumber,
+            status: ShipmentStatus::PRE_TRANSIT,
+            events: [$event],
             carrier: 'Aras Kargo',
         );
     }
 
     /**
-     * Map a description string to a ShipmentStatus using keyword matching.
+     * @return array<string, string|null>|null
      */
-    public static function mapStatusFromDescription(string $description): ShipmentStatus
+    private function getOrder(): ?array
     {
-        $lower = mb_strtolower($description, 'UTF-8');
-
-        // DELIVERED - check first since it's most specific
-        if (str_contains($lower, 'teslim edildi') || str_contains($lower, 'teslim edilmistir')) {
-            return ShipmentStatus::DELIVERED;
+        if (!is_array($this->data) || !isset($this->data['Order'])) {
+            return null;
         }
 
-        // PICKED_UP
-        if (str_contains($lower, 'teslim alindi') || str_contains($lower, 'teslim alinmistir')
-            || str_contains($lower, 'teslim alındı') || str_contains($lower, 'teslim alınmıştır')) {
-            return ShipmentStatus::PICKED_UP;
+        if (!is_array($this->data['Order'])) {
+            return null;
         }
 
-        // OUT_FOR_DELIVERY
-        if (str_contains($lower, 'teslimat subesinde') || str_contains($lower, 'teslimat şubesinde')
-            || str_contains($lower, 'teslimat subemize') || str_contains($lower, 'teslimat şubemize')) {
-            return ShipmentStatus::OUT_FOR_DELIVERY;
-        }
-
-        // PRE_TRANSIT
-        if (str_contains($lower, 'çıkış şubesinde') || str_contains($lower, 'cikis subesinde')
-            || str_contains($lower, 'kabul')) {
-            return ShipmentStatus::PRE_TRANSIT;
-        }
-
-        // IN_TRANSIT
-        if (str_contains($lower, 'yolda') || str_contains($lower, 'transfer')
-            || str_contains($lower, 'gonderiliyor') || str_contains($lower, 'gönderi̇li̇yor')
-            || str_contains($lower, 'gönderiliyor')
-            || str_contains($lower, 'aracimiza yuklenmistir') || str_contains($lower, 'aracımıza yüklenmiştir')) {
-            return ShipmentStatus::IN_TRANSIT;
-        }
-
-        // RETURNED
-        if (str_contains($lower, 'iade')) {
-            return ShipmentStatus::RETURNED;
-        }
-
-        // CANCELLED
-        if (str_contains($lower, 'iptal')) {
-            return ShipmentStatus::CANCELLED;
-        }
-
-        return ShipmentStatus::UNKNOWN;
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $responses
-     * @return TrackingEvent[]
-     */
-    private function parseEvents(array $responses): array
-    {
-        $events = [];
-
-        foreach ($responses as $item) {
-            $description = '';
-            if (isset($item['Description']) && is_string($item['Description'])) {
-                $description = $item['Description'];
-            }
-
-            $status = self::mapStatusFromDescription($description);
-
-            $dateTime = new \DateTimeImmutable();
-            if (isset($item['TransactionDate']) && is_string($item['TransactionDate']) && $item['TransactionDate'] !== '') {
-                try {
-                    $dateTime = new \DateTimeImmutable($item['TransactionDate']);
-                } catch (\Exception) {
-                    // Keep default
-                }
-            }
-
-            $location = null;
-            if (isset($item['UnitName']) && is_string($item['UnitName']) && $item['UnitName'] !== '') {
-                $location = $item['UnitName'];
-            }
-
-            $events[] = new TrackingEvent(
-                status: $status,
-                description: $description,
-                occurredAt: $dateTime,
-                location: $location,
-            );
-        }
-
-        return $events;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function getResponses(): array
-    {
-        if (!is_array($this->data) || !isset($this->data['Responses'])) {
-            return [];
-        }
-
-        if (!is_array($this->data['Responses'])) {
-            return [];
-        }
-
-        /** @var array<int, array<string, mixed>> */
-        return $this->data['Responses'];
+        /** @var array<string, string|null> */
+        return $this->data['Order'];
     }
 
     private function getResponseCode(): ?int

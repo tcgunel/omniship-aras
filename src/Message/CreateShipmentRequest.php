@@ -168,12 +168,12 @@ class CreateShipmentRequest extends AbstractArasRequest
      */
     private function buildPieceDetails(array $packages): array
     {
-        $integrationCode = $this->getIntegrationCode() ?? '';
-        $index = 1;
+        $barcodes = $this->getBarcodes() ?? [];
+        $index = 0;
 
         if ($packages === []) {
             return [[
-                'BarcodeNumber' => $integrationCode . '-' . $index,
+                'BarcodeNumber' => $barcodes[0] ?? '',
                 'VolumetricWeight' => '0',
                 'Weight' => '0',
                 'Description' => '',
@@ -186,7 +186,7 @@ class CreateShipmentRequest extends AbstractArasRequest
             for ($i = 0; $i < $package->quantity; $i++) {
                 $desi = $package->getDesi() ?? 0.0;
                 $details[] = [
-                    'BarcodeNumber' => $integrationCode . '-' . $index,
+                    'BarcodeNumber' => $barcodes[$index] ?? '',
                     'VolumetricWeight' => $this->formatNumber($desi),
                     'Weight' => $this->formatNumber($package->weight),
                     'Description' => $package->description ?? '',

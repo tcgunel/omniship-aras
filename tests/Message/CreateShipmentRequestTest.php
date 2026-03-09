@@ -122,6 +122,33 @@ it('builds piece details from packages', function () {
         ->and($data['PieceDetails'][0])->toHaveKey('Description', 'Test parcel');
 });
 
+it('uses merchant-provided barcodes in piece details', function () {
+    $this->request->setBarcodes(['BARCODE-001']);
+
+    $data = $this->request->getData();
+
+    expect($data['PieceDetails'][0]['BarcodeNumber'])->toBe('BARCODE-001');
+});
+
+it('maps multiple barcodes to multiple pieces', function () {
+    $this->request->setPackages([
+        new Package(weight: 1.0, length: 10, width: 10, height: 10),
+        new Package(weight: 2.0, length: 20, width: 20, height: 20),
+    ]);
+    $this->request->setBarcodes(['BC-001', 'BC-002']);
+
+    $data = $this->request->getData();
+
+    expect($data['PieceDetails'][0]['BarcodeNumber'])->toBe('BC-001')
+        ->and($data['PieceDetails'][1]['BarcodeNumber'])->toBe('BC-002');
+});
+
+it('uses empty barcode when no barcodes provided', function () {
+    $data = $this->request->getData();
+
+    expect($data['PieceDetails'][0]['BarcodeNumber'])->toBe('');
+});
+
 it('builds multiple piece details from multi-package shipment', function () {
     $this->request->setPackages([
         new Package(weight: 1.0, length: 10, width: 10, height: 10, description: 'Package 1'),
