@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "tcgunel/omniship-common": "@dev",
+        "tcgunel/omniship-common": "^0.0.1",
         "ext-simplexml": "*",
         "ext-libxml": "*"
     },
