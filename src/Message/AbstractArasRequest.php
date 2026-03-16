@@ -69,7 +69,7 @@ abstract class AbstractArasRequest extends AbstractHttpRequest
         return $this->getParameter('senderAccountAddressId');
     }
 
-    public function setSenderAccountAddressId(string $senderAccountAddressId): static
+    public function setSenderAccountAddressId(?string $senderAccountAddressId): static
     {
         return $this->setParameter('senderAccountAddressId', $senderAccountAddressId);
     }

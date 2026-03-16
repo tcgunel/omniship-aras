@@ -46,9 +46,9 @@ class Carrier extends AbstractHttpCarrier
         return (string) $this->getParameter('senderAccountAddressId');
     }
 
-    public function setSenderAccountAddressId(string $senderAccountAddressId): static
+    public function setSenderAccountAddressId(?string $senderAccountAddressId): static
     {
-        return $this->setParameter('senderAccountAddressId', $senderAccountAddressId);
+        return $this->setParameter('senderAccountAddressId', $senderAccountAddressId ?? '');
     }
 
     /**
