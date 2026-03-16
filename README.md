@@ -67,15 +67,81 @@ if ($response->isSuccessful()) {
 }
 ```
 
-#### Barcodes
+#### Integration Code & Barcodes
 
-The `barcodes` parameter accepts an array of barcode strings, one per piece. Barcodes are matched to pieces by index. If you have 2 packages with quantity 1 each, provide 2 barcodes:
+Per Aras Kargo requirements:
+- `integrationCode` must be **unique, minimum 6 characters, numeric only**
+- `barcodes` are auto-generated from `integrationCode` + 2-digit piece suffix if not provided
+- Single piece: `integrationCode=12345678` → barcode `1234567801`
+- Multi piece: `integrationCode=12345678` → barcodes `1234567801`, `1234567802`
+
+You can also provide explicit barcodes (one per piece):
 
 ```php
-'barcodes' => ['BARCODE-001', 'BARCODE-002'],
+'barcodes' => ['1234567801', '1234567802'],
 ```
 
 If a package has `quantity: 3`, you need 3 barcodes for that package's pieces.
+
+### Generate Labels
+
+Aras Kargo does not provide labels — they must be designed by the integrator. The built-in label generator creates print-ready HTML labels with barcodes (via Google Fonts Libre Barcode 128).
+
+```php
+// Generate labels using default template
+$html = $carrier->generateLabels([
+    'shipFrom' => $shipFrom,
+    'shipTo' => $shipTo,
+    'packages' => $packages,
+    'integrationCode' => '12345678',
+    'paymentType' => PaymentType::SENDER,
+    'cashOnDelivery' => false,
+]);
+
+// Output or save the HTML
+file_put_contents('labels.html', $html);
+```
+
+Each package piece gets its own label with:
+- Carrier name and date
+- Sender name
+- Receiver name, phone, address
+- Payment type or COD info
+- Integration code with barcode
+- Piece barcode with barcode
+- Piece number (e.g. `Paket: 1/3`)
+
+#### Custom Label Template
+
+You can provide your own HTML template with placeholders:
+
+```php
+$customTemplate = '<div class="my-label">
+    <h1>{{carrierName}}</h1>
+    <p>{{receiverName}} - {{receiverPhone}}</p>
+    <p>{{receiverAddress}}</p>
+    <p>Entegrasyon: {{integrationCode}}</p>
+    <p>Barkod: {{barcodeNumber}}</p>
+    <p>Paket: {{pieceNumber}} / {{totalPieces}}</p>
+</div>';
+
+$html = $carrier->generateLabels($shipmentData, $customTemplate);
+```
+
+Available placeholders: `{{carrierName}}`, `{{date}}`, `{{senderName}}`, `{{receiverName}}`, `{{receiverPhone}}`, `{{receiverAddress}}`, `{{paymentTypeText}}`, `{{codLine}}`, `{{codDisplay}}`, `{{paymentDisplay}}`, `{{integrationCode}}`, `{{barcodeNumber}}`, `{{pieceNumber}}`, `{{totalPieces}}`.
+
+#### Raw Label Data
+
+For full control over rendering, get `LabelData` objects directly:
+
+```php
+$labels = $carrier->getLabelData($shipmentData);
+
+foreach ($labels as $label) {
+    echo $label->integrationCode;
+    echo $label->barcodeNumber;
+    echo "{$label->pieceNumber}/{$label->totalPieces}";
+}
 
 ### Track Shipment
 
@@ -141,6 +207,7 @@ if ($response->isSuccessful()) {
 | 940 | City name is required |
 | 941 | District name is required |
 | 1000 | Invalid username or password |
+| 1006 | Sender dispatch address not found (invalid SenderAccountAddressId) |
 | 70022 | Barcode info missing in piece details |
 | 70027 | Barcode already used |
 | 70030 | Piece barcodes must be unique |

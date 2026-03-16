@@ -169,11 +169,13 @@ class CreateShipmentRequest extends AbstractArasRequest
     private function buildPieceDetails(array $packages): array
     {
         $barcodes = $this->getBarcodes() ?? [];
+        $integrationCode = $this->getIntegrationCode() ?? '';
         $index = 0;
 
         if ($packages === []) {
+            $barcode = $barcodes[0] ?? $this->generateBarcode($integrationCode, 1);
             return [[
-                'BarcodeNumber' => $barcodes[0] ?? '',
+                'BarcodeNumber' => $barcode,
                 'VolumetricWeight' => '0',
                 'Weight' => '0',
                 'Description' => '',
@@ -185,8 +187,9 @@ class CreateShipmentRequest extends AbstractArasRequest
         foreach ($packages as $package) {
             for ($i = 0; $i < $package->quantity; $i++) {
                 $desi = $package->getDesi() ?? 0.0;
+                $barcode = $barcodes[$index] ?? $this->generateBarcode($integrationCode, $index + 1);
                 $details[] = [
-                    'BarcodeNumber' => $barcodes[$index] ?? '',
+                    'BarcodeNumber' => $barcode,
                     'VolumetricWeight' => $this->formatNumber($desi),
                     'Weight' => $this->formatNumber($package->weight),
                     'Description' => $package->description ?? '',
@@ -196,6 +199,19 @@ class CreateShipmentRequest extends AbstractArasRequest
         }
 
         return $details;
+    }
+
+    /**
+     * Auto-generate barcode from IntegrationCode + 2-digit piece number.
+     * E.g. IntegrationCode "12345678" + piece 1 → "1234567801"
+     */
+    private function generateBarcode(string $integrationCode, int $pieceNumber): string
+    {
+        if ($integrationCode === '') {
+            return '';
+        }
+
+        return $integrationCode . str_pad((string) $pieceNumber, 2, '0', STR_PAD_LEFT);
     }
 
     /**
