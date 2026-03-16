@@ -49,7 +49,7 @@ class CreateShipmentRequest extends AbstractArasRequest
             'IsCod' => $this->getCashOnDelivery() ? '1' : '0',
             'CodAmount' => $this->getCashOnDelivery() ? $this->formatNumber($this->getCodAmount() ?? 0.0) : '0',
             'CodCollectionType' => $this->getCashOnDelivery() ? $this->getCodCollectionType() : '0',
-            'CodBillingType' => '0',
+            'CodBillingType' => $this->getCashOnDelivery() ? $this->getCodBillingType() : '0',
             'PieceDetails' => $this->buildPieceDetails($packages),
             'SenderAccountAddressId' => $this->getSenderAccountAddressId() ?? '',
         ];

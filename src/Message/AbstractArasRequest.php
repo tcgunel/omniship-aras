@@ -118,6 +118,19 @@ abstract class AbstractArasRequest extends AbstractHttpRequest
     }
 
     /**
+     * COD billing type: 0 = included in shipment, 1 = billed separately.
+     */
+    public function getCodBillingType(): string
+    {
+        return (string) ($this->getParameter('codBillingType') ?? '0');
+    }
+
+    public function setCodBillingType(string $codBillingType): static
+    {
+        return $this->setParameter('codBillingType', $codBillingType);
+    }
+
+    /**
      * @return string[]|null
      */
     public function getBarcodes(): ?array
