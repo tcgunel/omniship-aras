@@ -105,6 +105,19 @@ abstract class AbstractArasRequest extends AbstractHttpRequest
     }
 
     /**
+     * COD collection type: 0 = cash, 1 = credit card at door.
+     */
+    public function getCodCollectionType(): string
+    {
+        return (string) ($this->getParameter('codCollectionType') ?? '0');
+    }
+
+    public function setCodCollectionType(string $codCollectionType): static
+    {
+        return $this->setParameter('codCollectionType', $codCollectionType);
+    }
+
+    /**
      * @return string[]|null
      */
     public function getBarcodes(): ?array

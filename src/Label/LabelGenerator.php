@@ -72,7 +72,7 @@ class LabelGenerator
 
         $paymentTypeText = self::resolvePaymentTypeText($paymentType);
 
-        // Calculate total pieces
+        // Calculate total pieces (use barcode count if it exceeds package quantity)
         $totalPieces = 0;
         if ($packages === []) {
             $totalPieces = 1;
@@ -83,11 +83,14 @@ class LabelGenerator
             }
         }
 
-        $labels = [];
-        $pieceIndex = 0;
+        if (count($barcodes) > $totalPieces) {
+            $totalPieces = count($barcodes);
+        }
 
-        if ($packages === []) {
-            $barcode = $barcodes[0] ?? self::generateBarcode($integrationCode, 1);
+        $labels = [];
+
+        for ($pieceIndex = 0; $pieceIndex < $totalPieces; $pieceIndex++) {
+            $barcode = $barcodes[$pieceIndex] ?? self::generateBarcode($integrationCode, $pieceIndex + 1);
             $labels[] = new LabelData(
                 date: $date,
                 senderName: $senderName,
@@ -100,32 +103,9 @@ class LabelGenerator
                 codCurrency: $codCurrency,
                 integrationCode: $integrationCode,
                 barcodeNumber: $barcode,
-                pieceNumber: 1,
-                totalPieces: 1,
+                pieceNumber: $pieceIndex + 1,
+                totalPieces: $totalPieces,
             );
-        } else {
-            /** @var Package $package */
-            foreach ($packages as $package) {
-                for ($i = 0; $i < $package->quantity; $i++) {
-                    $barcode = $barcodes[$pieceIndex] ?? self::generateBarcode($integrationCode, $pieceIndex + 1);
-                    $labels[] = new LabelData(
-                        date: $date,
-                        senderName: $senderName,
-                        receiverName: $receiverName,
-                        receiverPhone: $receiverPhone,
-                        receiverAddress: $receiverAddress,
-                        paymentTypeText: $paymentTypeText,
-                        isCod: $isCod,
-                        codAmount: $codAmount,
-                        codCurrency: $codCurrency,
-                        integrationCode: $integrationCode,
-                        barcodeNumber: $barcode,
-                        pieceNumber: $pieceIndex + 1,
-                        totalPieces: $totalPieces,
-                    );
-                    $pieceIndex++;
-                }
-            }
         }
 
         return $labels;
