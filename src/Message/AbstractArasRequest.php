@@ -99,9 +99,9 @@ abstract class AbstractArasRequest extends AbstractHttpRequest
         return $this->getParameter('codAmount');
     }
 
-    public function setCodAmount(float $codAmount): static
+    public function setCodAmount(float|string $codAmount): static
     {
-        return $this->setParameter('codAmount', $codAmount);
+        return $this->setParameter('codAmount', (float) $codAmount);
     }
 
     /**
