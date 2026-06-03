@@ -11,7 +11,7 @@ use Omniship\Common\Message\ResponseInterface;
 abstract class AbstractArasRequest extends AbstractHttpRequest
 {
     private const SOAP_URL_TEST = 'https://customerservicestest.araskargo.com.tr/arascargoservice/arascargoservice.asmx';
-    private const SOAP_URL_PRODUCTION = 'https://customerservices.araskargo.com.tr/arascargoservice/arascargoservice.asmx';
+    private const SOAP_URL_PRODUCTION = 'https://customerws.araskargo.com.tr/arascargoservice.asmx';
     private const TRACKING_URL = 'https://kurumsalwebservice.araskargo.com.tr/api/getCargoTransactionByTrackingNumber';
 
     public function getUsername(): ?string

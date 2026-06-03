@@ -18,7 +18,7 @@ class Carrier extends AbstractHttpCarrier
     use UsernamePasswordTrait;
 
     private const BASE_URL_TEST = 'https://customerservicestest.araskargo.com.tr/arascargoservice/arascargoservice.asmx';
-    private const BASE_URL_PRODUCTION = 'https://customerservices.araskargo.com.tr/arascargoservice/arascargoservice.asmx';
+    private const BASE_URL_PRODUCTION = 'https://customerws.araskargo.com.tr/arascargoservice.asmx';
 
     public function getName(): string
     {

@@ -55,7 +55,7 @@ it('returns test base URL in test mode', function () {
 
 it('returns production base URL in production mode', function () {
     $this->carrier->setTestMode(false);
-    expect($this->carrier->getBaseUrl())->toContain('customerservices.araskargo.com.tr')
+    expect($this->carrier->getBaseUrl())->toContain('customerws.araskargo.com.tr')
         ->and($this->carrier->getBaseUrl())->not->toContain('test');
 });
 
