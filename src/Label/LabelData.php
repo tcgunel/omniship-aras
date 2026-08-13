@@ -21,13 +21,12 @@ readonly class LabelData
         public string $barcodeNumber = '',
         public int $pieceNumber = 1,
         public int $totalPieces = 1,
-        /**
-         * Totals for the whole shipment, matching the Weight and
-         * VolumetricWeight declared to Aras — not a per-piece split, which the
-         * package data does not describe.
-         */
+        /** This parcel's own weight and volume — what "Paket Kg." means. */
         public float $weight = 0.0,
         public float $desi = 0.0,
+        /** The shipment totals, as declared to Aras. */
+        public float $totalWeight = 0.0,
+        public float $totalDesi = 0.0,
         /** What is in the parcel, taken from the package description. */
         public string $productName = '',
         /** The shop's account number with the carrier, printed on the waybill. */

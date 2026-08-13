@@ -99,6 +99,12 @@ class LabelGenerator
         $totalDesi = 0.0;
         $productName = '';
 
+        // Expanded to one entry per physical parcel, because a label describes
+        // the box it is stuck to: "Paket Kg." is that parcel's weight, not the
+        // shipment's. A caller shipping three 10 kg sacks sends three packages
+        // and each label reads 10 Kg., while the waybill totals 30.
+        $pieceFigures = [];
+
         /** @var Package $package */
         foreach ($packages as $package) {
             $totalWeight += $package->weight * $package->quantity;
@@ -106,6 +112,14 @@ class LabelGenerator
 
             if ($productName === '' && ($package->description ?? '') !== '') {
                 $productName = (string) $package->description;
+            }
+
+            for ($copy = 0; $copy < $package->quantity; $copy++) {
+                $pieceFigures[] = [
+                    'weight' => $package->weight,
+                    'desi' => $package->getDesi() ?? 0.0,
+                    'description' => (string) ($package->description ?? ''),
+                ];
             }
         }
 
@@ -127,9 +141,14 @@ class LabelGenerator
                 barcodeNumber: $barcode,
                 pieceNumber: $pieceIndex + 1,
                 totalPieces: $totalPieces,
-                weight: $totalWeight,
-                desi: $totalDesi,
-                productName: $productName,
+                // Falls back to the shipment totals when the caller described
+                // fewer packages than there are pieces — barcodes can raise the
+                // piece count beyond the parcel list.
+                weight: $pieceFigures[$pieceIndex]['weight'] ?? $totalWeight,
+                desi: $pieceFigures[$pieceIndex]['desi'] ?? $totalDesi,
+                totalWeight: $totalWeight,
+                totalDesi: $totalDesi,
+                productName: ($pieceFigures[$pieceIndex]['description'] ?? '') ?: $productName,
                 customerNo: $customerNo,
                 orderNumber: $orderNumber,
             );
@@ -211,6 +230,8 @@ class LabelGenerator
             // A shipment declared purely by weight has no desi and vice versa.
             // Printing the missing one as "0" is worse than saying nothing: it
             // reads as a measured zero rather than as "not applicable".
+            '{{totalWeight}}' => self::formatNumber($label->totalWeight),
+            '{{totalDesi}}' => self::formatNumber($label->totalDesi),
             '{{weightDisplay}}' => $label->weight > 0 ? 'inline' : 'none',
             '{{desiDisplay}}' => $label->desi > 0 ? 'inline' : 'none',
             '{{productName}}' => htmlspecialchars($label->productName),

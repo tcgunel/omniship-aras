@@ -42,8 +42,45 @@ it('sums weight and desi across packages and quantities', function () {
     ]));
 
     // Matches CreateShipmentRequest's Weight / VolumetricWeight arithmetic.
-    expect($labels[0]->weight)->toBe(7.5)
-        ->and($labels[0]->desi)->toBe(12.5);
+    expect($labels[0]->totalWeight)->toBe(7.5)
+        ->and($labels[0]->totalDesi)->toBe(12.5);
+});
+
+/**
+ * A label describes the box it is stuck to. Printing the shipment total in
+ * "Paket Kg." would tell the courier a 10 kg sack weighs 30.
+ */
+it('gives each piece its own weight and description', function () {
+    $labels = LabelGenerator::fromShipmentData(shipmentParams([
+        'packages' => [
+            new Package(weight: 10.0, description: 'Chandler 10 Kg.', quantity: 2),
+            new Package(weight: 5.0, description: 'Fernor 5 Kg.'),
+        ],
+    ]));
+
+    expect($labels)->toHaveCount(3)
+        ->and($labels[0]->weight)->toBe(10.0)
+        ->and($labels[1]->weight)->toBe(10.0)
+        ->and($labels[2]->weight)->toBe(5.0)
+        ->and($labels[2]->productName)->toBe('Fernor 5 Kg.')
+        ->and($labels[2]->totalWeight)->toBe(25.0)
+        ->and($labels[2]->pieceNumber)->toBe(3)
+        ->and($labels[2]->totalPieces)->toBe(3);
+});
+
+/**
+ * Barcodes can raise the piece count past the parcel list; those extra labels
+ * have no figures of their own and fall back to the shipment totals.
+ */
+it('falls back to shipment totals for pieces beyond the parcel list', function () {
+    $labels = LabelGenerator::fromShipmentData(shipmentParams([
+        'packages' => [new Package(weight: 6.0)],
+        'barcodes' => ['A01', 'A02'],
+    ]));
+
+    expect($labels)->toHaveCount(2)
+        ->and($labels[0]->weight)->toBe(6.0)
+        ->and($labels[1]->weight)->toBe(6.0);
 });
 
 it('derives desi from dimensions when none was supplied', function () {
