@@ -7,7 +7,8 @@
         "php": "^8.2",
         "tcgunel/omniship-common": "^0.1",
         "ext-simplexml": "*",
-        "ext-libxml": "*"
+        "ext-libxml": "*",
+        "picqer/php-barcode-generator": "^3.0"
     },
     "require-dev": {
         "pestphp/pest": "^3.0",

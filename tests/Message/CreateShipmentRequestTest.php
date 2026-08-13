@@ -143,10 +143,15 @@ it('maps multiple barcodes to multiple pieces', function () {
         ->and($data['PieceDetails'][1]['BarcodeNumber'])->toBe('BC-002');
 });
 
-it('uses empty barcode when no barcodes provided', function () {
+/**
+ * Callers are not required to supply barcodes: buildPieceDetails() derives
+ * them from the integration code plus the piece number, which is the same rule
+ * the merchant panel applies client-side.
+ */
+it('derives the barcode from the integration code when none is provided', function () {
     $data = $this->request->getData();
 
-    expect($data['PieceDetails'][0]['BarcodeNumber'])->toBe('');
+    expect($data['PieceDetails'][0]['BarcodeNumber'])->toBe('ORD-00101');
 });
 
 it('builds multiple piece details from multi-package shipment', function () {

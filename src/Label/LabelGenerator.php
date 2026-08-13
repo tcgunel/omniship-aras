@@ -87,6 +87,19 @@ class LabelGenerator
             $totalPieces = count($barcodes);
         }
 
+        // Same arithmetic CreateShipmentRequest uses for the Weight and
+        // VolumetricWeight it declares, so the label cannot disagree with the
+        // waybill. getDesi() falls back to the L×W×H derivation when the
+        // caller supplied no explicit desi.
+        $totalWeight = 0.0;
+        $totalDesi = 0.0;
+
+        /** @var Package $package */
+        foreach ($packages as $package) {
+            $totalWeight += $package->weight * $package->quantity;
+            $totalDesi += ($package->getDesi() ?? 0.0) * $package->quantity;
+        }
+
         $labels = [];
 
         for ($pieceIndex = 0; $pieceIndex < $totalPieces; $pieceIndex++) {
@@ -105,10 +118,25 @@ class LabelGenerator
                 barcodeNumber: $barcode,
                 pieceNumber: $pieceIndex + 1,
                 totalPieces: $totalPieces,
+                weight: $totalWeight,
+                desi: $totalDesi,
             );
         }
 
         return $labels;
+    }
+
+    /**
+     * Turkish decimal notation, trailing zeros trimmed: a 3 kg parcel should
+     * print "3 Kg." on the label, not "3,00 Kg.".
+     */
+    private static function formatNumber(float $value): string
+    {
+        $formatted = number_format($value, 2, ',', '.');
+
+        return str_contains($formatted, ',')
+            ? rtrim(rtrim($formatted, '0'), ',')
+            : $formatted;
     }
 
     private function renderLabel(string $template, LabelData $label): string
@@ -121,6 +149,14 @@ class LabelGenerator
         }
 
         $replacements = [
+            // MUST precede {{integrationCode}} and {{barcodeNumber}}:
+            // str_replace() walks the array in order, and {{integrationCode}}
+            // is a prefix of {{integrationCodeSvg}} — substituting it first
+            // would rewrite the middle of the longer placeholder and leave
+            // "Svg}}" behind as literal text on the label.
+            '{{integrationCodeSvg}}' => Barcode::svg($label->integrationCode),
+            '{{barcodeSvg}}' => Barcode::svg($label->barcodeNumber),
+
             '{{carrierName}}' => htmlspecialchars($label->carrierName),
             '{{date}}' => htmlspecialchars($label->date),
             '{{senderName}}' => htmlspecialchars($label->senderName),
@@ -135,6 +171,8 @@ class LabelGenerator
             '{{barcodeNumber}}' => htmlspecialchars($label->barcodeNumber),
             '{{pieceNumber}}' => (string) $label->pieceNumber,
             '{{totalPieces}}' => (string) $label->totalPieces,
+            '{{weight}}' => self::formatNumber($label->weight),
+            '{{desi}}' => self::formatNumber($label->desi),
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);
@@ -157,12 +195,30 @@ class LabelGenerator
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128+Text&display=swap" rel="stylesheet">
             <style>
+                /* Pin the sheet to the label stock. Without this the printer
+                   uses its default paper and the design is scaled to whatever
+                   fits — which is how barcodes end up too small to scan. */
+                @page { size: 100mm 130mm; margin: 0; }
+
                 @media print {
                     .label { page-break-after: always; }
                     .label:last-child { page-break-after: avoid; }
                     body { margin: 0; }
                 }
                 body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+
+                /* Vector barcode. The container fixes the physical width; the
+                   SVG stretches to fill it, so bar widths are known in mm
+                   instead of depending on a font rendering at some point size. */
+                .bc { display: block; height: 22mm; }
+                .bc svg { display: block; width: 100%; height: 100%; }
+
+                /* Retained for templates written against the old font-based
+                   barcode. New templates should use the Svg placeholders
+                   instead: this renders as plain digits, and therefore does
+                   not scan, whenever the remote webfont fails to load.
+                   NB: this block is emitted after placeholder substitution,
+                   so it must never contain placeholder syntax itself. */
                 .barcode {
                     font-family: 'Libre Barcode 128 Text', cursive;
                     font-size: 48px;
@@ -177,73 +233,56 @@ class LabelGenerator
         HTML;
     }
 
+    /**
+     * The stock Aras label: 100x130mm, vector barcodes, laid out the way the
+     * carrier's own waybill reads.
+     *
+     * Both barcodes are {{...Svg}} rather than the old font-based .barcode
+     * markup, which shops reported as unscannable — the bars printed too fine
+     * for a handheld reader and the digits had to be keyed in by hand.
+     */
     private function getDefaultTemplate(): string
     {
         return <<<'HTML'
-        <div class="label" style="width: 100mm; border: 1px solid #000; font-family: Arial, sans-serif; font-size: 12px; margin: 10px auto; padding: 0;">
-            <!-- Header -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #000;">
-                    <td style="padding: 8px; font-weight: bold; font-size: 13px;">Kargo Firması : {{carrierName}}</td>
-                    <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 13px;">{{date}}</td>
-                </tr>
-            </table>
-
-            <!-- Sender -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #000;">
-                    <td style="padding: 6px 8px;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">Gönderici Bilgileri</div>
-                        <div><strong>İsim</strong> : {{senderName}}</div>
-                    </td>
-                </tr>
-            </table>
-
-            <!-- Receiver -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #000;">
-                    <td style="padding: 6px 8px;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">Alıcı Bilgileri</div>
-                        <div><strong>İsim</strong> : {{receiverName}}</div>
-                        <div><strong>Telefon</strong> : {{receiverPhone}}</div>
-                        <div><strong>Adres</strong> : {{receiverAddress}}</div>
-                    </td>
-                </tr>
-            </table>
-
-            <!-- Payment Type (non-COD) -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #000; display: {{paymentDisplay}};">
-                    <td style="padding: 6px 8px; font-weight: bold;">Kargo Ödeme Tipi : {{paymentTypeText}}</td>
-                </tr>
-            </table>
-
-            <!-- COD Info -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #000; display: {{codDisplay}};">
-                    <td style="padding: 6px 8px; font-weight: bold;">{{codLine}}</td>
-                </tr>
-            </table>
-
-            <!-- Integration Code -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr style="border-bottom: 1px solid #000;">
-                    <td style="padding: 8px; text-align: center;">
-                        <div style="font-weight: bold; margin-bottom: 2px;">Entegrasyon No : {{integrationCode}}</div>
-                        <div class="barcode">{{integrationCode}}</div>
-                    </td>
-                </tr>
-            </table>
-
-            <!-- Piece Barcode -->
-            <table style="width: 100%; border-collapse: collapse;">
+        <div class="label" style="width:100mm;height:130mm;box-sizing:border-box;padding:2mm;font-family:Arial,Helvetica,sans-serif;color:#000;">
+            <table style="width:100%;border:2px solid #000;border-collapse:collapse;">
                 <tr>
-                    <td style="padding: 8px; text-align: center;">
-                        <div style="font-weight: bold; margin-bottom: 2px;">Paket Barkod No : {{barcodeNumber}}</div>
-                        <div class="barcode">{{barcodeNumber}}</div>
+                    <td style="padding:1.5mm 2mm;font-size:17pt;font-weight:bold;width:26%;">{{senderName}}</td>
+                    <td style="padding:1.5mm 2mm;font-size:9pt;font-weight:bold;width:32%;">Kargo Firması :<br>{{carrierName}}</td>
+                    <td style="padding:1.5mm 2mm;font-size:9pt;font-weight:bold;width:28%;">Tarih : <span style="font-weight:normal;">{{date}}</span></td>
+                    <td style="padding:1.5mm 2mm;text-align:center;width:14%;">
+                        <span style="display:inline-block;border:1.5px solid #000;padding:1mm 2.5mm;font-size:15pt;font-weight:bold;">{{pieceNumber}}/{{totalPieces}}</span>
                     </td>
-                    <td style="padding: 8px; text-align: right; vertical-align: bottom; font-weight: bold;">
-                        Paket : {{pieceNumber}} / {{totalPieces}}
+                </tr>
+                <tr>
+                    <td colspan="4" style="padding:1.5mm 2mm;border-top:2px solid #000;">
+                        <div style="font-size:11pt;font-weight:bold;margin-bottom:1mm;">Alıcı Bilgileri</div>
+                        <div style="font-size:9pt;margin-bottom:0.8mm;"><b>Ad / Unvan:</b> {{receiverName}}</div>
+                        <div style="font-size:9pt;margin-bottom:0.8mm;"><b>Adres:</b> {{receiverAddress}}</div>
+                        <table style="width:100%;border-collapse:collapse;">
+                            <tr>
+                                <td style="border:0;padding:0;font-size:9pt;"><b>Telefon No:</b> {{receiverPhone}}</td>
+                                <td style="border:0;padding:0;text-align:right;font-size:8pt;"><b>Paket Kg.:</b> {{weight}} &nbsp; <b>Desi:</b> {{desi}}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr style="display:{{paymentDisplay}};">
+                    <td colspan="4" style="padding:1.2mm 2mm;border-top:2px solid #000;font-size:9pt;font-weight:bold;">Kargo Ödeme Tipi : {{paymentTypeText}}</td>
+                </tr>
+                <tr style="display:{{codDisplay}};">
+                    <td colspan="4" style="padding:1.2mm 2mm;border-top:2px solid #000;font-size:9pt;font-weight:bold;">{{codLine}}</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="padding:2mm;border-top:2px solid #000;border-right:2px solid #000;text-align:center;">
+                        <div style="font-size:11pt;font-weight:bold;">Entegrasyon No</div>
+                        <div style="font-size:9pt;margin-bottom:1mm;">{{integrationCode}}</div>
+                        <div class="bc">{{integrationCodeSvg}}</div>
+                    </td>
+                    <td colspan="2" style="padding:2mm;border-top:2px solid #000;text-align:center;">
+                        <div style="font-size:11pt;font-weight:bold;">Paket Barkod No</div>
+                        <div style="font-size:9pt;margin-bottom:1mm;">{{barcodeNumber}}</div>
+                        <div class="bc">{{barcodeSvg}}</div>
                     </td>
                 </tr>
             </table>

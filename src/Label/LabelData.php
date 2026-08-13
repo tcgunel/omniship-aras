@@ -21,5 +21,12 @@ readonly class LabelData
         public string $barcodeNumber = '',
         public int $pieceNumber = 1,
         public int $totalPieces = 1,
+        /**
+         * Totals for the whole shipment, matching the Weight and
+         * VolumetricWeight declared to Aras — not a per-piece split, which the
+         * package data does not describe.
+         */
+        public float $weight = 0.0,
+        public float $desi = 0.0,
     ) {}
 }
