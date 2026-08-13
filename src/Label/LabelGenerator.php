@@ -330,12 +330,12 @@ class LabelGenerator
                         <table style="width:100%;border-collapse:collapse;">
                             <tr>
                                 <td style="border:0;padding:0;text-align:center;">
-                                    <div style="font-size:12pt;font-weight:bold;">Paket Barkod No</div>
-                                    <div style="font-size:10pt;">{{barcodeNumber}}</div>
+                                    <div style="font-size:8pt;font-weight:bold;">Paket Barkod No</div>
+                                    <div style="font-size:8pt;">{{barcodeNumber}}</div>
                                 </td>
                                 <td style="border:0;padding:0;text-align:right;width:34%;vertical-align:top;">
-                                    <div style="display:{{weightDisplay}};"><b style="font-size:12pt;">Paket Kg.</b><br><span style="font-size:10pt;">{{weight}} Kg.</span></div>
-                                    <div style="display:{{desiDisplay}};"><b style="font-size:12pt;">Desi</b><br><span style="font-size:10pt;">{{desi}}</span></div>
+                                    <div style="display:{{weightDisplay}};"><b style="font-size:8pt;">Paket Kg.</b><br><span style="font-size:8pt;">{{weight}} Kg.</span></div>
+                                    <div style="display:{{desiDisplay}};"><b style="font-size:8pt;">Desi</b><br><span style="font-size:8pt;">{{desi}}</span></div>
                                 </td>
                             </tr>
                         </table>
