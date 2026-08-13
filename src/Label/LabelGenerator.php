@@ -55,6 +55,10 @@ class LabelGenerator
         $codAmount = (float) ($params['codAmount'] ?? 0.0);
         $codCurrency = $params['codCurrency'] ?? 'TL';
         $date = $params['date'] ?? date('d.m.Y');
+        // Printed on the waybill but never part of the shipment request, so it
+        // is passed in rather than derived.
+        $customerNo = (string) ($params['customerNo'] ?? '');
+        $orderNumber = (string) ($params['invoiceNumber'] ?? '');
 
         $senderName = '';
         if ($shipFrom instanceof Address) {
@@ -93,11 +97,16 @@ class LabelGenerator
         // caller supplied no explicit desi.
         $totalWeight = 0.0;
         $totalDesi = 0.0;
+        $productName = '';
 
         /** @var Package $package */
         foreach ($packages as $package) {
             $totalWeight += $package->weight * $package->quantity;
             $totalDesi += ($package->getDesi() ?? 0.0) * $package->quantity;
+
+            if ($productName === '' && ($package->description ?? '') !== '') {
+                $productName = (string) $package->description;
+            }
         }
 
         $labels = [];
@@ -120,10 +129,31 @@ class LabelGenerator
                 totalPieces: $totalPieces,
                 weight: $totalWeight,
                 desi: $totalDesi,
+                productName: $productName,
+                customerNo: $customerNo,
+                orderNumber: $orderNumber,
             );
         }
 
         return $labels;
+    }
+
+    /**
+     * Keep enough of the number to identify the recipient, hide the rest.
+     *
+     * Six leading characters is what Aras' own waybill shows (051022*****).
+     * Numbers too short to mask are left alone rather than blanked, since a
+     * label with no phone at all is worse than one with a short one.
+     */
+    private static function maskPhone(string $phone): string
+    {
+        $visible = 6;
+
+        if (mb_strlen($phone) <= $visible) {
+            return $phone;
+        }
+
+        return mb_substr($phone, 0, $visible) . str_repeat('*', mb_strlen($phone) - $visible);
     }
 
     /**
@@ -161,7 +191,12 @@ class LabelGenerator
             '{{date}}' => htmlspecialchars($label->date),
             '{{senderName}}' => htmlspecialchars($label->senderName),
             '{{receiverName}}' => htmlspecialchars($label->receiverName),
-            '{{receiverPhone}}' => htmlspecialchars($label->receiverPhone),
+            // Masked by default. The label travels through many hands, while
+            // the courier already has the full number: it is sent to Aras as
+            // ReceiverPhone1 and never comes from here. Templates that genuinely
+            // need the whole number can use {{receiverPhoneFull}}.
+            '{{receiverPhoneFull}}' => htmlspecialchars($label->receiverPhone),
+            '{{receiverPhone}}' => htmlspecialchars(self::maskPhone($label->receiverPhone)),
             '{{receiverAddress}}' => htmlspecialchars($label->receiverAddress),
             '{{paymentTypeText}}' => htmlspecialchars($label->paymentTypeText),
             '{{codLine}}' => $codLine,
@@ -173,6 +208,15 @@ class LabelGenerator
             '{{totalPieces}}' => (string) $label->totalPieces,
             '{{weight}}' => self::formatNumber($label->weight),
             '{{desi}}' => self::formatNumber($label->desi),
+            // A shipment declared purely by weight has no desi and vice versa.
+            // Printing the missing one as "0" is worse than saying nothing: it
+            // reads as a measured zero rather than as "not applicable".
+            '{{weightDisplay}}' => $label->weight > 0 ? 'inline' : 'none',
+            '{{desiDisplay}}' => $label->desi > 0 ? 'inline' : 'none',
+            '{{productName}}' => htmlspecialchars($label->productName),
+            '{{customerNo}}' => htmlspecialchars($label->customerNo),
+            '{{customerNoDisplay}}' => $label->customerNo !== '' ? 'block' : 'none',
+            '{{orderNumber}}' => htmlspecialchars($label->orderNumber),
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);
@@ -198,7 +242,7 @@ class LabelGenerator
                 /* Pin the sheet to the label stock. Without this the printer
                    uses its default paper and the design is scaled to whatever
                    fits — which is how barcodes end up too small to scan. */
-                @page { size: 100mm 130mm; margin: 0; }
+                @page { size: 130mm 100mm; margin: 0; }
 
                 @media print {
                     .label { page-break-after: always; }
@@ -234,55 +278,68 @@ class LabelGenerator
     }
 
     /**
-     * The stock Aras label: 100x130mm, vector barcodes, laid out the way the
-     * carrier's own waybill reads.
+     * The stock Aras label: 130x100mm landscape, laid out like the carrier's
+     * own waybill.
      *
-     * Both barcodes are {{...Svg}} rather than the old font-based .barcode
-     * markup, which shops reported as unscannable — the bars printed too fine
-     * for a handheld reader and the digits had to be keyed in by hand.
+     * Barcodes are the {{...Svg}} placeholders rather than the old font-based
+     * .barcode markup, which shops reported as unscannable. The phone is the
+     * masked {{receiverPhone}}; weight and desi hide themselves when the
+     * shipment was declared by only one of the two.
      */
     private function getDefaultTemplate(): string
     {
         return <<<'HTML'
-        <div class="label" style="width:100mm;height:130mm;box-sizing:border-box;padding:2mm;font-family:Arial,Helvetica,sans-serif;color:#000;">
-            <table style="width:100%;border:2px solid #000;border-collapse:collapse;">
+        <div class="label" style="width:130mm;height:100mm;box-sizing:border-box;padding:2mm;font-family:Arial,Helvetica,sans-serif;color:#000;">
+            <table style="width:100%;height:100%;border:2px solid #000;border-collapse:collapse;">
                 <tr>
-                    <td style="padding:1.5mm 2mm;font-size:17pt;font-weight:bold;width:26%;">{{senderName}}</td>
-                    <td style="padding:1.5mm 2mm;font-size:9pt;font-weight:bold;width:32%;">Kargo Firması :<br>{{carrierName}}</td>
-                    <td style="padding:1.5mm 2mm;font-size:9pt;font-weight:bold;width:28%;">Tarih : <span style="font-weight:normal;">{{date}}</span></td>
+                    <td style="padding:1.5mm 2mm;font-size:18pt;font-weight:bold;width:26%;">{{senderName}}</td>
+                    <td style="padding:1.5mm 2mm;font-size:10pt;font-weight:bold;width:30%;">
+                        <span style="display:{{customerNoDisplay}};">Müşteri No :<br>{{customerNo}}</span>
+                    </td>
+                    <td style="padding:1.5mm 2mm;font-size:10pt;font-weight:bold;width:30%;">Tarih : <span style="font-weight:normal;">{{date}}</span></td>
                     <td style="padding:1.5mm 2mm;text-align:center;width:14%;">
-                        <span style="display:inline-block;border:1.5px solid #000;padding:1mm 2.5mm;font-size:15pt;font-weight:bold;">{{pieceNumber}}/{{totalPieces}}</span>
+                        <span style="display:inline-block;border:1.5px solid #000;padding:0.5mm 2.5mm;font-size:16pt;font-weight:bold;">{{pieceNumber}}/{{totalPieces}}</span>
                     </td>
                 </tr>
                 <tr>
-                    <td colspan="4" style="padding:1.5mm 2mm;border-top:2px solid #000;">
-                        <div style="font-size:11pt;font-weight:bold;margin-bottom:1mm;">Alıcı Bilgileri</div>
-                        <div style="font-size:9pt;margin-bottom:0.8mm;"><b>Ad / Unvan:</b> {{receiverName}}</div>
-                        <div style="font-size:9pt;margin-bottom:0.8mm;"><b>Adres:</b> {{receiverAddress}}</div>
+                    <td colspan="4" style="padding:1.5mm 2mm;border-top:2px solid #000;vertical-align:top;">
+                        <div style="font-size:12pt;font-weight:bold;margin-bottom:1mm;">Alıcı Bilgileri</div>
+                        <div style="font-size:10pt;margin-bottom:1mm;"><b>Ad / Unvan:</b> {{receiverName}}</div>
+                        <div style="font-size:10pt;margin-bottom:1mm;"><b>Adres:</b> {{receiverAddress}}</div>
                         <table style="width:100%;border-collapse:collapse;">
                             <tr>
-                                <td style="border:0;padding:0;font-size:9pt;"><b>Telefon No:</b> {{receiverPhone}}</td>
-                                <td style="border:0;padding:0;text-align:right;font-size:8pt;"><b>Paket Kg.:</b> {{weight}} &nbsp; <b>Desi:</b> {{desi}}</td>
+                                <td style="border:0;padding:0;font-size:10pt;"><b>Telefon No:</b> {{receiverPhone}}</td>
+                                <td style="border:0;padding:0;text-align:right;font-size:8pt;"><b>Ürün Çeşidi:</b> {{productName}}</td>
                             </tr>
                         </table>
                     </td>
                 </tr>
                 <tr style="display:{{paymentDisplay}};">
-                    <td colspan="4" style="padding:1.2mm 2mm;border-top:2px solid #000;font-size:9pt;font-weight:bold;">Kargo Ödeme Tipi : {{paymentTypeText}}</td>
+                    <td colspan="4" style="padding:1mm 2mm;border-top:2px solid #000;font-size:9pt;font-weight:bold;">Kargo Ödeme Tipi : {{paymentTypeText}}</td>
                 </tr>
                 <tr style="display:{{codDisplay}};">
-                    <td colspan="4" style="padding:1.2mm 2mm;border-top:2px solid #000;font-size:9pt;font-weight:bold;">{{codLine}}</td>
+                    <td colspan="4" style="padding:1mm 2mm;border-top:2px solid #000;font-size:9pt;font-weight:bold;">{{codLine}}</td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="padding:2mm;border-top:2px solid #000;border-right:2px solid #000;text-align:center;">
-                        <div style="font-size:11pt;font-weight:bold;">Entegrasyon No</div>
-                        <div style="font-size:9pt;margin-bottom:1mm;">{{integrationCode}}</div>
+                    <td colspan="2" style="padding:2mm;border-top:2px solid #000;border-right:2px solid #000;text-align:center;vertical-align:top;">
+                        <div style="font-size:12pt;font-weight:bold;">Entegrasyon No</div>
+                        <div style="font-size:10pt;margin-bottom:1mm;">{{integrationCode}}</div>
                         <div class="bc">{{integrationCodeSvg}}</div>
                     </td>
-                    <td colspan="2" style="padding:2mm;border-top:2px solid #000;text-align:center;">
-                        <div style="font-size:11pt;font-weight:bold;">Paket Barkod No</div>
-                        <div style="font-size:9pt;margin-bottom:1mm;">{{barcodeNumber}}</div>
-                        <div class="bc">{{barcodeSvg}}</div>
+                    <td colspan="2" style="padding:2mm;border-top:2px solid #000;text-align:center;vertical-align:top;">
+                        <table style="width:100%;border-collapse:collapse;">
+                            <tr>
+                                <td style="border:0;padding:0;text-align:center;">
+                                    <div style="font-size:12pt;font-weight:bold;">Paket Barkod No</div>
+                                    <div style="font-size:10pt;">{{barcodeNumber}}</div>
+                                </td>
+                                <td style="border:0;padding:0;text-align:right;width:34%;vertical-align:top;">
+                                    <div style="display:{{weightDisplay}};"><b style="font-size:12pt;">Paket Kg.</b><br><span style="font-size:10pt;">{{weight}} Kg.</span></div>
+                                    <div style="display:{{desiDisplay}};"><b style="font-size:12pt;">Desi</b><br><span style="font-size:10pt;">{{desi}}</span></div>
+                                </td>
+                            </tr>
+                        </table>
+                        <div class="bc" style="margin-top:1mm;">{{barcodeSvg}}</div>
                     </td>
                 </tr>
             </table>

@@ -28,5 +28,10 @@ readonly class LabelData
          */
         public float $weight = 0.0,
         public float $desi = 0.0,
+        /** What is in the parcel, taken from the package description. */
+        public string $productName = '',
+        /** The shop's account number with the carrier, printed on the waybill. */
+        public string $customerNo = '',
+        public string $orderNumber = '',
     ) {}
 }
