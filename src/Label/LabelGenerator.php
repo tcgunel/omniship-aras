@@ -278,6 +278,15 @@ class LabelGenerator
                 .bc { display: block; height: 22mm; }
                 .bc svg { display: block; width: 100%; height: 100%; }
 
+                /* The two barcode cells carry different captions — a 12pt
+                   heading on the left, an 8pt two-column block on the right —
+                   so left to themselves their barcodes start at different
+                   heights and print visibly stepped. Fixing the caption box
+                   makes both barcodes begin on the same line whatever the
+                   caption contains; overflow is hidden so an unexpectedly long
+                   value pushes nothing down. */
+                .bc-head { height: 10mm; overflow: hidden; }
+
                 /* Retained for templates written against the old font-based
                    barcode. New templates should use the Svg placeholders
                    instead: this renders as plain digits, and therefore does
@@ -343,24 +352,28 @@ class LabelGenerator
                 </tr>
                 <tr>
                     <td colspan="2" style="padding:2mm;border-top:2px solid #000;border-right:2px solid #000;text-align:center;vertical-align:top;">
-                        <div style="font-size:12pt;font-weight:bold;">Entegrasyon No</div>
-                        <div style="font-size:10pt;margin-bottom:1mm;">{{integrationCode}}</div>
+                        <div class="bc-head">
+                            <div style="font-size:12pt;font-weight:bold;">Entegrasyon No</div>
+                            <div style="font-size:10pt;">{{integrationCode}}</div>
+                        </div>
                         <div class="bc">{{integrationCodeSvg}}</div>
                     </td>
                     <td colspan="2" style="padding:2mm;border-top:2px solid #000;text-align:center;vertical-align:top;">
-                        <table style="width:100%;border-collapse:collapse;">
-                            <tr>
-                                <td style="border:0;padding:0;text-align:center;">
-                                    <div style="font-size:8pt;font-weight:bold;">Paket Barkod No</div>
-                                    <div style="font-size:8pt;">{{barcodeNumber}}</div>
-                                </td>
-                                <td style="border:0;padding:0;text-align:right;width:34%;vertical-align:top;">
-                                    <div style="display:{{weightDisplay}};"><b style="font-size:8pt;">Paket Kg.</b><br><span style="font-size:8pt;">{{weight}} Kg.</span></div>
-                                    <div style="display:{{desiDisplay}};"><b style="font-size:8pt;">Desi</b><br><span style="font-size:8pt;">{{desi}}</span></div>
-                                </td>
-                            </tr>
-                        </table>
-                        <div class="bc" style="margin-top:1mm;">{{barcodeSvg}}</div>
+                        <div class="bc-head">
+                            <table style="width:100%;border-collapse:collapse;">
+                                <tr>
+                                    <td style="border:0;padding:0;text-align:center;">
+                                        <div style="font-size:8pt;font-weight:bold;">Paket Barkod No</div>
+                                        <div style="font-size:8pt;">{{barcodeNumber}}</div>
+                                    </td>
+                                    <td style="border:0;padding:0;text-align:right;width:34%;vertical-align:top;">
+                                        <div style="display:{{weightDisplay}};"><b style="font-size:8pt;">Paket Kg.</b><br><span style="font-size:8pt;">{{weight}} Kg.</span></div>
+                                        <div style="display:{{desiDisplay}};"><b style="font-size:8pt;">Desi</b><br><span style="font-size:8pt;">{{desi}}</span></div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="bc">{{barcodeSvg}}</div>
                     </td>
                 </tr>
             </table>
