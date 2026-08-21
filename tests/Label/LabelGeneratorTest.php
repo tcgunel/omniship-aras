@@ -116,6 +116,27 @@ it('produces a scalable barcode with no intrinsic pixel size', function () {
         ->and($svg)->not->toContain('<?xml');
 });
 
+/**
+ * Aras' courier app could not read labels whose bars sat against the template's
+ * 2mm padding with the cell border immediately beyond it. Camera scanners need
+ * the full ten modules Code 128 specifies; carrying it in the viewBox means it
+ * scales with the bars and survives templates merchants have edited.
+ */
+it('carries a ten-module quiet zone on both sides of the symbol', function () {
+    $svg = Barcode::svg('2607203877');
+
+    expect($svg)->toMatch('/viewBox="-20 0 [\d.]+ [\d.]+"/');
+
+    preg_match('/viewBox="(-?[\d.]+) 0 ([\d.]+) /', $svg, $box);
+
+    // The generator lays the bars out from x=0, so the widened viewport must
+    // add the margin at both ends, not just the left.
+    $bars = (float) $box[2] - (2 * 20);
+
+    expect((float) $box[1])->toBe(-20.0)
+        ->and($bars)->toBeGreaterThan(0.0);
+});
+
 it('returns an empty barcode rather than throwing on an empty value', function () {
     expect(Barcode::svg(''))->toBe('');
 });

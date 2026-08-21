@@ -25,12 +25,38 @@ use Throwable;
 final class Barcode
 {
     /**
+     * Bar width multiplier handed to the generator. Every horizontal distance
+     * below is expressed in these units, so the quiet zone stays correct if it
+     * ever changes.
+     */
+    private const MODULE_WIDTH = 2;
+
+    /**
+     * Code 128 requires a clear margin of at least ten modules either side of
+     * the symbol. Without it a scanner cannot find where the code begins.
+     */
+    private const QUIET_ZONE_MODULES = 10;
+
+    /**
      * Inline SVG sized by CSS rather than by intrinsic pixels.
      *
      * width/height are dropped and preserveAspectRatio disabled so the
-     * template can pin the barcode to an exact millimetre width — the only
-     * thing that actually determines whether a scanner can read it. Bars keep
+     * template can pin the barcode to an exact millimetre width. Bars keep
      * their relative widths, so stretching stays valid Code 128.
+     *
+     * The quiet zone is part of the graphic rather than the template's
+     * padding. Aras' courier app could not read labels whose bars had only the
+     * template's 2mm padding beside them — around a third of what the symbol's
+     * own bar width demanded, with the label's black cell border immediately
+     * beyond that. Camera scanners are far stricter about this than the
+     * handheld guns, which is why the same label scanned at the depot and not
+     * in the app. Carrying it in the viewBox means every template gets it,
+     * including ones merchants have edited themselves, and it cannot drift out
+     * of proportion: widening the label widens the bars and the margin
+     * together.
+     *
+     * The trade is a slightly narrower bar for the same allotted width. That
+     * is the right way round — the bars had width to spare and no margin.
      *
      * @return string Inline <svg>, or an empty string when $value cannot be encoded.
      */
@@ -41,7 +67,7 @@ final class Barcode
         }
 
         try {
-            $svg = (new BarcodeGeneratorSVG())->getBarcode($value, BarcodeGenerator::TYPE_CODE_128, 2, 60);
+            $svg = (new BarcodeGeneratorSVG())->getBarcode($value, BarcodeGenerator::TYPE_CODE_128, self::MODULE_WIDTH, 60);
         } catch (Throwable) {
             return '';
         }
@@ -58,25 +84,40 @@ final class Barcode
 
         return (string) preg_replace(
             '/<svg\b[^>]*>/',
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' . self::viewBoxOf($svg) . '" preserveAspectRatio="none" width="100%" height="100%">',
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' . self::viewBoxOf($svg) . '" preserveAspectRatio="none" width="100%" height="100%">',
             $svg,
             1,
         );
     }
 
     /**
-     * Recover the intrinsic dimensions so the replacement tag keeps a viewBox
-     * to scale against.
+     * The intrinsic dimensions, widened by a quiet zone on each side.
+     *
+     * The origin moves left rather than the bars moving right: the generator
+     * has already placed them from x=0, and shifting the viewport is the one
+     * change that needs no edit to the bars themselves.
      */
     private static function viewBoxOf(string $svg): string
     {
+        [$width, $height] = self::intrinsicSizeOf($svg);
+
+        $quietZone = self::QUIET_ZONE_MODULES * self::MODULE_WIDTH;
+
+        return (-$quietZone) . ' 0 ' . ($width + (2 * $quietZone)) . ' ' . $height;
+    }
+
+    /**
+     * @return array{0: float, 1: float}
+     */
+    private static function intrinsicSizeOf(string $svg): array
+    {
         if (preg_match('/viewBox="0 0 ([\d.]+) ([\d.]+)"/', $svg, $m) === 1) {
-            return $m[1] . ' ' . $m[2];
+            return [(float) $m[1], (float) $m[2]];
         }
 
         preg_match('/\bwidth="([\d.]+)"/', $svg, $w);
         preg_match('/\bheight="([\d.]+)"/', $svg, $h);
 
-        return ($w[1] ?? '100') . ' ' . ($h[1] ?? '60');
+        return [(float) ($w[1] ?? 100), (float) ($h[1] ?? 60)];
     }
 }
