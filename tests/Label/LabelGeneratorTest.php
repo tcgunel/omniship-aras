@@ -161,11 +161,11 @@ it('does not let the shorter placeholder eat the svg one', function () {
  * by the browser, which narrows the bars below what the design asked for --
  * the exact failure the @page pinning exists to prevent.
  */
-it('pins the printed sheet to the 160x100mm label stock, matching the label', function () {
+it('pins the printed sheet to the 150x100mm label stock, matching the label', function () {
     $html = (new LabelGenerator())->generate(LabelGenerator::fromShipmentData(shipmentParams()));
 
-    expect($html)->toContain('@page { size: 160mm 100mm; margin: 0; }')
-        ->and($html)->toContain('class="label" style="width:160mm;height:100mm;');
+    expect($html)->toContain('@page { size: 150mm 100mm; margin: 0; }')
+        ->and($html)->toContain('class="label" style="width:150mm;height:100mm;');
 });
 
 /**
