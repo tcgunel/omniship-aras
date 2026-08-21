@@ -262,8 +262,12 @@ class LabelGenerator
             <style>
                 /* Pin the sheet to the label stock. Without this the printer
                    uses its default paper and the design is scaled to whatever
-                   fits — which is how barcodes end up too small to scan. */
-                @page { size: 130mm 100mm; margin: 0; }
+                   fits — which is how barcodes end up too small to scan.
+                   This MUST stay in step with the .label width in
+                   getDefaultTemplate(): a label wider than the page is shrunk
+                   to fit, which narrows the bars below what the design asked
+                   for and is exactly the failure the pinning exists to stop. */
+                @page { size: 160mm 100mm; margin: 0; }
 
                 @media print {
                     .label { page-break-after: always; }
@@ -319,7 +323,7 @@ class LabelGenerator
     private function getDefaultTemplate(): string
     {
         return <<<'HTML'
-        <div class="label" style="width:130mm;height:100mm;box-sizing:border-box;padding:2mm;font-family:Arial,Helvetica,sans-serif;color:#000;">
+        <div class="label" style="width:160mm;height:100mm;box-sizing:border-box;padding:2mm;font-family:Arial,Helvetica,sans-serif;color:#000;">
             <table style="width:100%;height:100%;border:2px solid #000;border-collapse:collapse;">
                 <tr>
                     <td style="padding:1.5mm 2mm;font-size:18pt;font-weight:bold;width:26%;">{{senderName}}</td>
